@@ -63,7 +63,6 @@ trait CromwellApiService {
         }
       }
     },
-
     path("engine" / Segment / "version") { version =>
       get { complete(versionResponse) }
     }

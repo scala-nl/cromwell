@@ -2,13 +2,13 @@ package cromwell.services.healthmonitor
 
 import java.util.concurrent.TimeoutException
 
-import akka.actor.Actor
+import akka.actor.{Actor, Cancellable}
 import akka.pattern.{after, pipe}
-import cats._
-import cats.implicits._
+//import cats._
+//import cats.implicits._
 import com.typesafe.scalalogging.LazyLogging
 
-import scala.concurrent.Future
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.control.NonFatal
 import scala.language.postfixOps
@@ -18,15 +18,18 @@ import cromwell.services.ServiceRegistryActor.ServiceRegistryMessage
 trait HealthMonitorServiceActor extends Actor with LazyLogging {
   def subsystems: List[Subsystem]
 
-  implicit val ec = context.system.dispatcher
+  implicit val ec: ExecutionContext = context.system.dispatcher
 
   val futureTimeout: FiniteDuration = DefaultFutureTimeout
   val staleThreshold: FiniteDuration = DefaultStaleThreshold
 
   logger.info("Starting health monitor...")
-  val checkTick = context.system.scheduler.schedule(10 seconds, 1 minute, self, CheckAll)
+  val checkTick: Cancellable = context.system.scheduler.schedule(10 seconds, 1 minute, self, CheckAll)
 
-  override def postStop() = checkTick.cancel()
+  override def postStop(): Unit = {
+    checkTick.cancel()
+    ()
+  }
 
   /**
     * Contains each subsystem status along with a timestamp of when the entry was made.
@@ -34,7 +37,7 @@ trait HealthMonitorServiceActor extends Actor with LazyLogging {
     */
   private var data: Map[Subsystem, (SubsystemStatus, Long)] = {
     val now = System.currentTimeMillis
-    subsystems.map(_ -> (UnknownStatus, now)).toMap
+    subsystems.map((_, (UnknownStatus, now))).toMap
   }
 
   override def receive: Receive = {
@@ -51,10 +54,12 @@ trait HealthMonitorServiceActor extends Actor with LazyLogging {
       } map {
       Store(subsystem, _)
     } pipeTo self
+
+    ()
   }
 
   private def store(subsystem: Subsystem, status: SubsystemStatus): Unit = {
-    data = data + (subsystem -> (status, System.currentTimeMillis))
+    data = data + ((subsystem, (status, System.currentTimeMillis)))
     logger.debug(s"New health monitor state: $data")
   }
 
@@ -75,13 +80,14 @@ trait HealthMonitorServiceActor extends Actor with LazyLogging {
     * Zero is an ok status with no messages.
     * Append uses && on the ok flag, and ++ on the messages.
     */
-  private implicit val SubsystemStatusMonoid = new Monoid[SubsystemStatus] {
-    def combine(a: SubsystemStatus, b: SubsystemStatus): SubsystemStatus = {
-      SubsystemStatus(a.ok && b.ok, a.messages |+| b.messages)
-    }
-
-    def empty: SubsystemStatus = OkStatus
-  }
+  // FIXME: Might be needed in checks, see how Rawls is doing things in the google checks
+//  private implicit val SubsystemStatusMonoid = new Monoid[SubsystemStatus] {
+//    def combine(a: SubsystemStatus, b: SubsystemStatus): SubsystemStatus = {
+//      SubsystemStatus(a.ok && b.ok, a.messages |+| b.messages)
+//    }
+//
+//    def empty: SubsystemStatus = OkStatus
+//  }
 
   /**
     * Adds non-blocking timeout support to futures.
@@ -99,8 +105,8 @@ trait HealthMonitorServiceActor extends Actor with LazyLogging {
 }
 
 object HealthMonitorServiceActor {
-  val DefaultFutureTimeout = 1 minute
-  val DefaultStaleThreshold = 15 minutes
+  val DefaultFutureTimeout: FiniteDuration = 1 minute
+  val DefaultStaleThreshold: FiniteDuration = 15 minutes
 
   val OkStatus = SubsystemStatus(true, None)
   val UnknownStatus = SubsystemStatus(false, Some(List("Unknown status")))

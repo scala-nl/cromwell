@@ -10,5 +10,5 @@ import cromwell.services.healthmonitor.HealthMonitorServiceActor.Subsystem
 */
 
 class StandardHealthMonitorServiceActor extends HealthMonitorServiceActor {
-  override val subsystems = List.empty[Subsystem]
+  override val subsystems: List[Subsystem] = List.empty[Subsystem]
 }
