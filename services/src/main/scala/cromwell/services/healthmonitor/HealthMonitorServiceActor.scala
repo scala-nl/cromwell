@@ -22,7 +22,7 @@ trait HealthMonitorServiceActor extends Actor with LazyLogging {
 
   val futureTimeout: FiniteDuration = DefaultFutureTimeout
   val staleThreshold: FiniteDuration = DefaultStaleThreshold
-
+  println("YO HO HO")
   logger.info("Starting health monitor...")
   val checkTick: Cancellable = context.system.scheduler.schedule(10 seconds, 1 minute, self, CheckAll)
 
