@@ -16,13 +16,13 @@ import HealthMonitorServiceActor._
 import cromwell.services.ServiceRegistryActor.ServiceRegistryMessage
 
 trait HealthMonitorServiceActor extends Actor with LazyLogging {
-  def subsystems: List[Subsystem]
+  lazy val subsystems: List[Subsystem] = List.empty[Subsystem] // FIXME: :'(
 
   implicit val ec: ExecutionContext = context.system.dispatcher
 
   val futureTimeout: FiniteDuration = DefaultFutureTimeout
   val staleThreshold: FiniteDuration = DefaultStaleThreshold
-  println("YO HO HO")
+
   logger.info("Starting health monitor...")
   val checkTick: Cancellable = context.system.scheduler.schedule(10 seconds, 1 minute, self, CheckAll)
 
@@ -35,9 +35,11 @@ trait HealthMonitorServiceActor extends Actor with LazyLogging {
     * Contains each subsystem status along with a timestamp of when the entry was made.
     * Initialized with unknown status.
     */
-  private var data: Map[Subsystem, (SubsystemStatus, Long)] = {
+  private var data: Map[Subsystem, CachedSubsystemStatus] = {
     val now = System.currentTimeMillis
-    subsystems.map((_, (UnknownStatus, now))).toMap
+    println("FOO: " + subsystems)
+    val z=  subsystems.map((_, CachedSubsystemStatus(UnknownStatus, now)))
+      z.toMap
   }
 
   override def receive: Receive = {
@@ -59,17 +61,18 @@ trait HealthMonitorServiceActor extends Actor with LazyLogging {
   }
 
   private def store(subsystem: Subsystem, status: SubsystemStatus): Unit = {
-    data = data + ((subsystem, (status, System.currentTimeMillis)))
+    data = data + ((subsystem, CachedSubsystemStatus(status, System.currentTimeMillis)))
     logger.debug(s"New health monitor state: $data")
   }
 
   private def getCurrentStatus: StatusCheckResponse = {
     val now = System.currentTimeMillis()
     // Convert any expired statuses to unknown
-    val processed = data.mapValues {
-      case (_, t) if now - t > staleThreshold.toMillis => UnknownStatus
-      case (status, _) => status
+    val processed = data map {
+      case (s, c) if now - c.created > staleThreshold.toMillis => s.name -> UnknownStatus
+      case (s, c) => s.name -> c.status
     }
+
     // overall status is ok iff all subsystems are ok
     val overall = processed.forall(_._2.ok)
     StatusCheckResponse(overall, processed)
@@ -114,6 +117,7 @@ object HealthMonitorServiceActor {
 
   final case class Subsystem(name: String, check: () => Future[SubsystemStatus])
   final case class SubsystemStatus(ok: Boolean, messages: Option[List[String]])
+  final case class CachedSubsystemStatus(status: SubsystemStatus, created: Long) // created is time in millis when status was captured
 
   sealed abstract class HealthMonitorServiceActorRequest
   case object CheckAll extends HealthMonitorServiceActorRequest
@@ -121,5 +125,5 @@ object HealthMonitorServiceActor {
   case object GetCurrentStatus extends HealthMonitorServiceActorRequest with ServiceRegistryMessage { override val serviceName = "HealthMonitor" }
 
   sealed abstract class HealthMonitorServiceActorResponse
-  final case class StatusCheckResponse(ok: Boolean, systems: Map[Subsystem, SubsystemStatus]) extends HealthMonitorServiceActorResponse
+  final case class StatusCheckResponse(ok: Boolean, systems: Map[String, SubsystemStatus]) extends HealthMonitorServiceActorResponse
 }

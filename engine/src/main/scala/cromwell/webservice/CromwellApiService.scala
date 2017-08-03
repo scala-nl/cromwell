@@ -32,6 +32,7 @@ import cromwell.engine.workflow.lifecycle.execution.callcaching.CallCacheDiffAct
 import cromwell.engine.workflow.lifecycle.execution.callcaching.{CallCacheDiffActor, CallCacheDiffQueryParameter}
 import cromwell.engine.workflow.workflowstore.WorkflowStoreEngineActor.WorkflowStoreEngineAbortResponse
 import cromwell.server.CromwellShutdown
+import cromwell.services.healthmonitor.HealthMonitorServiceActor.{GetCurrentStatus, StatusCheckResponse}
 import cromwell.webservice.LabelsManagerActor._
 import lenthall.exception.AggregatedMessageException
 import spray.json.JsObject
@@ -65,6 +66,12 @@ trait CromwellApiService {
     },
     path("engine" / Segment / "version") { version =>
       get { complete(versionResponse) }
+    },
+    path("engine" / Segment / "status") { version =>
+      onComplete(serviceRegistryActor.ask(GetCurrentStatus).mapTo[StatusCheckResponse]) {
+        case Success(status) => complete(status.systems)
+        case Failure(_) => new RuntimeException("Unable to gather engine status").failRequest(StatusCodes.InternalServerError)
+      }
     }
   )
 

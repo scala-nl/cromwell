@@ -13,5 +13,5 @@ import cromwell.services.healthmonitor.HealthMonitorServiceActor.Subsystem
  */
 
 class WorkbenchHealthMonitorServiceActor extends HealthMonitorServiceActor {
-  override val subsystems = List.empty[Subsystem]
+  override lazy val subsystems = List.empty[Subsystem] //FIXME
 }
