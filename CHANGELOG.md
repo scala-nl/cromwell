@@ -2,7 +2,9 @@
 
 ## 29
 
-### Breaking Changes
+### Release Notes
+
+#### Breaking Changes
 
 * Request timeouts for HTTP requests on the REST API now return a 503 status code instead of 500. The response for a request timeout is no longer in JSON format.
 * The metadata endpoint no longer returns gzipped responses by default. This now needs to be explicitly requested with an `Accept-Encoding: gzip` header 
@@ -16,10 +18,12 @@ retired at the same time.
 
 * The response format of the [callcaching/diff](https://github.com/broadinstitute/cromwell#get-apiworkflowsversioncallcachingdiff) endpoint has been updated.
 
-### Cromwell Server
+#### Cromwell Server
 
 * Cromwell now attempts to gracefully shutdown when running in server mode and receiving a `SIGINT` (`Ctrl-C`) or `SIGTERM` (`kill`) signal. This includes waiting for all pending Database writes before exiting.
 A detailed explanation and information about how to configure this feature can be found in the [Cromwell Wiki](https://github.com/broadinstitute/cromwell/wiki/DevZone#graceful-server-shutdown).
+
+### Other items
 
 ## 28
 
